@@ -175,9 +175,9 @@ VALUES ('admin', 'hashed_password', 'Admin User', 'admin@example.com', 'admin');
 # Connect to MySQL and execute
 try:
     connection = mysql.connector.connect(
-        host='localhost',       # or '127.0.0.1'
-        user='your_username',   # replace with your MySQL username
-        password='your_password' # replace with your MySQL password
+        host='192.168.0.174',       # or '127.0.0.1'
+        user='remote_control',   # replace with your MySQL username
+        password='Remote_control' # replace with your MySQL password
     )
 
     if connection.is_connected():

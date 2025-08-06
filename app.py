@@ -23,9 +23,9 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # MySQL configurations
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'root'
+app.config['MYSQL_HOST'] = '192.168.0.174'
+app.config['MYSQL_USER'] = 'remote_control'
+app.config['MYSQL_PASSWORD'] = 'Remote_control'
 app.config['MYSQL_DB'] = 'construction_project_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
