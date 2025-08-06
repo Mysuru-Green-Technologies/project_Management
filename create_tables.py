@@ -1,8 +1,12 @@
+import mysql.connector
+from mysql.connector import Error
+
+# Your SQL schema
+sql_script = """
 CREATE DATABASE IF NOT EXISTS construction_project_management;
 USE construction_project_management;
 
--- Users table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -11,8 +15,8 @@ CREATE TABLE users (
     role ENUM('admin', 'manager', 'supervisor', 'worker') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
--- Projects table
-CREATE TABLE projects (
+
+CREATE TABLE IF NOT EXISTS projects (
     project_id INT AUTO_INCREMENT PRIMARY KEY,
     project_name VARCHAR(100) NOT NULL,
     description TEXT,
@@ -22,11 +26,12 @@ CREATE TABLE projects (
     actual_budget DECIMAL(15,2) DEFAULT 0,
     status ENUM('planned', 'in_progress', 'on_hold', 'completed', 'cancelled') DEFAULT 'planned',
     created_by INT NOT NULL,
+    location VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(user_id)
 );
--- Tasks table
-CREATE TABLE tasks (
+
+CREATE TABLE IF NOT EXISTS tasks (
     task_id INT AUTO_INCREMENT PRIMARY KEY,
     project_id INT NOT NULL,
     task_name VARCHAR(100) NOT NULL,
@@ -46,8 +51,7 @@ CREATE TABLE tasks (
     FOREIGN KEY (parent_task_id) REFERENCES tasks(task_id)
 );
 
--- Workers table
-CREATE TABLE workers (
+CREATE TABLE IF NOT EXISTS workers (
     worker_id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     contact_number VARCHAR(20),
@@ -57,8 +61,7 @@ CREATE TABLE workers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Task assignments table
-CREATE TABLE task_assignments (
+CREATE TABLE IF NOT EXISTS task_assignments (
     assignment_id INT AUTO_INCREMENT PRIMARY KEY,
     task_id INT NOT NULL,
     worker_id INT NOT NULL,
@@ -70,8 +73,7 @@ CREATE TABLE task_assignments (
     FOREIGN KEY (worker_id) REFERENCES workers(worker_id)
 );
 
--- Materials table
-CREATE TABLE materials (
+CREATE TABLE IF NOT EXISTS materials (
     material_id INT AUTO_INCREMENT PRIMARY KEY,
     material_name VARCHAR(100) NOT NULL,
     unit VARCHAR(20) NOT NULL,
@@ -79,20 +81,21 @@ CREATE TABLE materials (
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
--- Task materials table
-CREATE TABLE task_materials (
+
+CREATE TABLE IF NOT EXISTS task_materials (
     task_material_id INT AUTO_INCREMENT PRIMARY KEY,
     task_id INT NOT NULL,
     material_id INT NOT NULL,
     quantity DECIMAL(10,2) NOT NULL,
-    total_cost DECIMAL(15,2), -- No longer generated
+    total_cost DECIMAL(15,2),
     date_used DATE NOT NULL,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (task_id) REFERENCES tasks(task_id),
     FOREIGN KEY (material_id) REFERENCES materials(material_id)
 );
-CREATE TABLE daily_progress (
+
+CREATE TABLE IF NOT EXISTS daily_progress (
     progress_id INT AUTO_INCREMENT PRIMARY KEY,
     task_id INT NOT NULL,
     progress_date DATE NOT NULL,
@@ -103,26 +106,8 @@ CREATE TABLE daily_progress (
     FOREIGN KEY (task_id) REFERENCES tasks(task_id),
     FOREIGN KEY (created_by) REFERENCES users(user_id)
 );
-use construction_project_management;
 
-CREATE TABLE task_assignments (
-    assignment_id INT AUTO_INCREMENT PRIMARY KEY,
-    task_id INT NOT NULL,
-    worker_id INT NOT NULL,
-    assignment_date DATE NOT NULL,
-    hours_worked DECIMAL(5,2) NOT NULL,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES tasks(task_id),
-    FOREIGN KEY (worker_id) REFERENCES workers(worker_id)
-);
-
-INSERT INTO users (username, password_hash, full_name, email, role)
-VALUES ('admin', 'hashed_password', 'Admin User', 'admin@example.com', 'admin');
-select * from users;
-use construction_project_management;
--- Add to project_management.sql
-CREATE TABLE documents (
+CREATE TABLE IF NOT EXISTS documents (
     document_id INT AUTO_INCREMENT PRIMARY KEY,
     document_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(255) NOT NULL,
@@ -134,7 +119,7 @@ CREATE TABLE documents (
     FOREIGN KEY (uploaded_by) REFERENCES users(user_id)
 );
 
-CREATE TABLE equipment (
+CREATE TABLE IF NOT EXISTS equipment (
     equipment_id INT AUTO_INCREMENT PRIMARY KEY,
     equipment_name VARCHAR(100) NOT NULL,
     equipment_type VARCHAR(50) NOT NULL,
@@ -148,7 +133,7 @@ CREATE TABLE equipment (
     FOREIGN KEY (assigned_project) REFERENCES projects(project_id)
 );
 
-CREATE TABLE safety_incidents (
+CREATE TABLE IF NOT EXISTS safety_incidents (
     incident_id INT AUTO_INCREMENT PRIMARY KEY,
     incident_type VARCHAR(100) NOT NULL,
     incident_date DATE NOT NULL,
@@ -162,9 +147,8 @@ CREATE TABLE safety_incidents (
     FOREIGN KEY (project_id) REFERENCES projects(project_id),
     FOREIGN KEY (reported_by) REFERENCES users(user_id)
 );
-ALTER TABLE projects ADD COLUMN location VARCHAR(100);
 
-CREATE TABLE subcontractors (
+CREATE TABLE IF NOT EXISTS subcontractors (
     subcontractor_id INT AUTO_INCREMENT PRIMARY KEY,
     company_name VARCHAR(100) NOT NULL,
     contact_person VARCHAR(100) NOT NULL,
@@ -175,7 +159,7 @@ CREATE TABLE subcontractors (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE subcontractor_projects (
+CREATE TABLE IF NOT EXISTS subcontractor_projects (
     id INT AUTO_INCREMENT PRIMARY KEY,
     subcontractor_id INT NOT NULL,
     project_id INT NOT NULL,
@@ -183,6 +167,33 @@ CREATE TABLE subcontractor_projects (
     FOREIGN KEY (project_id) REFERENCES projects(project_id),
     UNIQUE KEY (subcontractor_id, project_id)
 );
-select * from projects;
 
+INSERT INTO users (username, password_hash, full_name, email, role)
+VALUES ('admin', 'hashed_password', 'Admin User', 'admin@example.com', 'admin');
+"""
 
+# Connect to MySQL and execute
+try:
+    connection = mysql.connector.connect(
+        host='localhost',       # or '127.0.0.1'
+        user='your_username',   # replace with your MySQL username
+        password='your_password' # replace with your MySQL password
+    )
+
+    if connection.is_connected():
+        print("Connected to MySQL Server")
+        cursor = connection.cursor()
+        for statement in sql_script.strip().split(';'):
+            if statement.strip():
+                cursor.execute(statement + ';')
+        print("Database and tables created successfully.")
+        connection.commit()
+
+except Error as e:
+    print("Error:", e)
+
+finally:
+    if connection.is_connected():
+        cursor.close()
+        connection.close()
+        print("MySQL connection closed.")
