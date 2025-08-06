@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block header %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-building card-icon"></i>
+                <h5 class="card-title">Total Projects</h5>
+                <p class="card-text display-6">{{ project_status|sum(attribute='count') }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-check-circle card-icon"></i>
+                <h5 class="card-title">Completed</h5>
+                <p class="card-text display-6">
+                    {% for ps in project_status %}
+                        {% if ps.status == 'completed' %}{{ ps.count }}{% endif %}
+                    {% endfor %}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-hourglass card-icon"></i>
+                <h5 class="card-title">In Progress</h5>
+                <p class="card-text display-6">
+                    {% for ps in project_status %}
+                        {% if ps.status == 'in_progress' %}{{ ps.count }}{% endif %}
+                    {% endfor %}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-exclamation-triangle card-icon"></i>
+                <h5 class="card-title">Delayed</h5>
+                <p class="card-text display-6">
+                    {% for ts in task_status %}
+                        {% if ts.status == 'delayed' %}{{ ts.count }}{% endif %}
+                    {% endfor %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Recent Projects</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Project</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project in recent_projects %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('project_details', project_id=project.project_id) }}">
+                                        {{ project.project_name }}
+                                    </a>
+                                </td>
+                                <td>{{ project.start_date }}</td>
+                                <td>{{ project.end_date }}</td>
+                                <td>
+                                    <span class="badge 
+                                        {% if project.status == 'completed' %}bg-success
+                                        {% elif project.status == 'in_progress' %}bg-primary
+                                        {% elif project.status == 'on_hold' %}bg-warning
+                                        {% elif project.status == 'cancelled' %}bg-danger
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ project.status|replace('_', ' ')|title }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Upcoming Tasks</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Task</th>
+                                <th>Project</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in upcoming_tasks %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('task_details', task_id=task.task_id) }}">
+                                        {{ task.task_name }}
+                                    </a>
+                                </td>
+                                <td>{{ task.project_name }}</td>
+                                <td>{{ task.planned_start_date }}</td>
+                                <td>{{ task.planned_end_date }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

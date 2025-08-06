@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.project_name }} - Report{% endblock %}
+{% block header %}{{ project.project_name }} - Report{% endblock %}
+
+{% block actions %}
+<div class="btn-group">
+    <a href="{{ url_for('export_project', project_id=project.project_id) }}" class="btn btn-success">
+        <i class="bi bi-download"></i> Export Full Report (Excel)
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Project Summary</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Project Name</dt>
+                    <dd class="col-sm-8">{{ project.project_name }}</dd>
+
+                    <dt class="col-sm-4">Duration</dt>
+                    <dd class="col-sm-8">{{ project.start_date }} to {{ project.end_date }}</dd>
+
+                    <dt class="col-sm-4">Estimated Budget</dt>
+                    <dd class="col-sm-8">₹{{ "{:,.2f}".format(project.estimated_budget) }}</dd>
+
+                    <dt class="col-sm-4">Actual Cost</dt>
+                    <dd class="col-sm-8">₹{{ "{:,.2f}".format(total_actual) }}</dd>
+
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge 
+                            {% if project.status == 'completed' %}bg-success
+                            {% elif project.status == 'in_progress' %}bg-primary
+                            {% elif project.status == 'on_hold' %}bg-warning
+                            {% elif project.status == 'cancelled' %}bg-danger
+                            {% else %}bg-secondary{% endif %}">
+                            {{ project.status|replace('_', ' ')|title }}
+                        </span>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Cost Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="costChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Add this card after the cost breakdown card -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Budget Forecast</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <h6>Project Duration</h6>
+                    <div class="d-flex justify-content-between">
+                        <span>{{ budget_forecast.days_passed }} days passed</span>
+                        <span>{{ budget_forecast.total_days }} days total</span>
+                    </div>
+                    <div class="progress progress-thin">
+                        <div class="progress-bar bg-info" role="progressbar" 
+                             style="width: {{ budget_forecast.completion_percentage }}%" 
+                             aria-valuenow="{{ budget_forecast.completion_percentage }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100"></div>
+                    </div>
+                    <small class="text-muted">{{ "%.1f"|format(budget_forecast.completion_percentage) }}% of time elapsed</small>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <h6>Budget Utilization</h6>
+                    <div class="d-flex justify-content-between">
+                        <span>₹{{ "{:,.2f}".format(total_actual) }} spent</span>
+                        <span>₹{{ "{:,.2f}".format(budget_forecast.forecast_completion) }} expected</span>
+                    </div>
+                    <div class="progress progress-thin">
+                        <div class="progress-bar 
+                            {% if budget_forecast.budget_utilization > budget_forecast.completion_percentage %}bg-danger
+                            {% else %}bg-success{% endif %}" 
+                            role="progressbar" 
+                            style="width: {{ budget_forecast.budget_utilization }}%" 
+                            aria-valuenow="{{ budget_forecast.budget_utilization }}" 
+                            aria-valuemin="0" 
+                            aria-valuemax="100"></div>
+                    </div>
+                    <small class="text-muted">
+                        {{ "%.1f"|format(budget_forecast.budget_utilization) }}% of budget used
+                        (Variance: ₹{{ "{:,.2f}".format(budget_forecast.variance) }})
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert 
+            {% if budget_forecast.variance > 0 %}alert-danger
+            {% else %}alert-success{% endif %}">
+            <strong>
+                {% if budget_forecast.variance > 0 %}
+                Over budget by ₹{{ "{:,.2f}".format(budget_forecast.variance) }}
+                {% else %}
+                Under budget by ₹{{ "{:,.2f}".format(abs(budget_forecast.variance)) }}
+                {% endif %}
+            </strong>
+            <p class="mb-0">
+                Based on current spending rate, the project is estimated to 
+                {% if budget_forecast.variance > 0 %}
+                exceed the budget by approximately ₹{{ "{:,.2f}".format((budget_forecast.variance / budget_forecast.completion_percentage) * 100) if budget_forecast.completion_percentage > 0 else 0 }}
+                {% else %}
+                save approximately ₹{{ "{:,.2f}".format((abs(budget_forecast.variance) / budget_forecast.completion_percentage) * 100) if budget_forecast.completion_percentage > 0 else 0 }}
+                {% endif %}
+                by completion.
+            </p>
+        </div>
+    </div>
+</div>
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Progress Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="progressChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5>Tasks</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Task</th>
+                        <th>Type</th>
+                        <th>Duration</th>
+                        <th>Estimated Cost</th>
+                        <th>Actual Cost</th>
+                        <th>Status</th>
+                        <th>Variance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('task_details', task_id=task.task_id) }}">
+                                {{ task.task_name }}
+                            </a>
+                        </td>
+                        <td>{{ task.task_type|title }}</td>
+                        <td>
+                            {{ task.planned_start_date }} to {{ task.planned_end_date }}
+                            <br>
+                            <small class="text-muted">{{ task.estimated_days }} days</small>
+                        </td>
+                        <td>₹{{ "{:,.2f}".format(task.estimated_cost) }}</td>
+                        <td>₹{{ "{:,.2f}".format(task.material_cost + task.labor_cost) }}</td>
+                        <td>
+                            <span class="badge 
+                                {% if task.status == 'completed' %}bg-success
+                                {% elif task.status == 'in_progress' %}bg-primary
+                                {% elif task.status == 'delayed' %}bg-danger
+                                {% else %}bg-secondary{% endif %}">
+                                {{ task.status|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td>
+                            {% set variance = (task.material_cost + task.labor_cost) - task.estimated_cost %}
+                            <span class="{% if variance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                ₹{{ "{:,.2f}".format(variance) }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="3">Total</th>
+                        <th>₹{{ "{:,.2f}".format(total_estimated) }}</th>
+                        <th>₹{{ "{:,.2f}".format(total_actual) }}</th>
+                        <th></th>
+                        <th>
+                            {% set total_variance = total_actual - total_estimated %}
+                            <span class="{% if total_variance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                ₹{{ "{:,.2f}".format(total_variance) }}
+                            </span>
+                        </th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    // Progress Chart
+    const progressCtx = document.getElementById('progressChart').getContext('2d');
+    const progressChart = new Chart(progressCtx, {
+        type: 'line',
+        data: {
+            labels: {{ progress_dates|safe }},
+            datasets: [{
+                label: 'Progress (%)',
+                data: {{ progress_values|safe }},
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+
+    // Cost Chart
+    const costCtx = document.getElementById('costChart').getContext('2d');
+    const costChart = new Chart(costCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ cost_data.labels|safe }},
+            datasets: [{
+                data: {{ cost_data.values|safe }},
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 99, 132, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 99, 132, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += '₹' + context.raw.toLocaleString();
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

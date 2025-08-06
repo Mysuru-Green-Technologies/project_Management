@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Workers{% endblock %}
+{% block header %}Workers{% endblock %}
+
+{% block actions %}
+<a href="{{ url_for('add_worker') }}" class="btn btn-primary">
+    <i class="bi bi-plus-circle"></i> Add Worker
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>Specialization</th>
+                        <th>Daily Wage</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for worker in workers %}
+                    <tr>
+                        <td>{{ worker.name }}</td>
+                        <td>
+                            {% if worker.contact_number %}
+                            <a href="tel:{{ worker.contact_number }}">{{ worker.contact_number }}</a>
+                            {% endif %}
+                            {% if worker.email %}
+                            <br>
+                            <a href="mailto:{{ worker.email }}">{{ worker.email }}</a>
+                            {% endif %}
+                        </td>
+                        <td>{{ worker.specialization }}</td>
+                        <td>₹{{ "{:,.2f}".format(worker.daily_wage) }}</td>
+                        <td>
+                            <a href="#" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

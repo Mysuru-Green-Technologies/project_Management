@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task.task_name }}{% endblock %}
+{% block header %}{{ task.task_name }} <small class="text-muted">{{ task.project_name }}</small>{% endblock %}
+
+{% block actions %}
+<div class="btn-group">
+    <a href="{{ url_for('edit_task', task_id=task.task_id) }}" class="btn btn-warning">
+        <i class="bi bi-pencil"></i> Edit Task
+    </a>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#assignWorkerModal">
+        <i class="bi bi-person-plus"></i> Assign Worker
+    </button>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addMaterialModal">
+        <i class="bi bi-box-seam"></i> Add Material
+    </button>
+    <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#recordProgressModal">
+        <i class="bi bi-clipboard2-data"></i> Record Progress
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Task Details</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Description</dt>
+                    <dd class="col-sm-9">{{ task.description or 'No description' }}</dd>
+
+                    <dt class="col-sm-3">Type</dt>
+                    <dd class="col-sm-9">{{ task.task_type|title }}</dd>
+
+                    <dt class="col-sm-3">Duration</dt>
+                    <dd class="col-sm-9">
+                        Planned: {{ task.planned_start_date }} to {{ task.planned_end_date }} ({{ task.estimated_days }} days)
+                        {% if task.actual_start_date %}
+                        <br>Actual: {{ task.actual_start_date }} to {{ task.actual_end_date or 'In progress' }}
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-3">Cost</dt>
+                    <dd class="col-sm-9">
+                        ₹{{ "{:,.2f}".format(task.estimated_cost or 0) }} (estimated)
+                        <br>₹{{ "{:,.2f}".format(total_cost or 0) }} (actual)
+                    </dd>
+
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9">
+                        <span class="badge 
+                            {% if task.status == 'completed' %}bg-success
+                            {% elif task.status == 'in_progress' %}bg-primary
+                            {% elif task.status == 'delayed' %}bg-danger
+                            {% else %}bg-secondary{% endif %}">
+                            {{ task.status|replace('_', ' ')|title }}
+                        </span>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Cost Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Labor Cost</h6>
+                    <div class="d-flex justify-content-between">
+                        <span>₹{{ "{:,.2f}".format(labor_cost or 0) }}</span>
+                        <span class="text-muted">
+                            {% if total_cost and total_cost > 0 %}
+                            {{ ((labor_cost / total_cost) * 100)|round(1) }}%
+                            {% else %}0%{% endif %}
+                        </span>
+                    </div>
+                    <div class="progress progress-thin">
+                        <div class="progress-bar bg-primary" role="progressbar" 
+                             style="width: {% if total_cost and total_cost > 0 %}{{ ((labor_cost / total_cost) * 100) }}{% else %}0{% endif %}%" 
+                             aria-valuenow="{% if total_cost and total_cost > 0 %}{{ ((labor_cost / total_cost) * 100) }}{% else %}0{% endif %}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100"></div>
+                    </div>
+                </div>
+                <div>
+                    <h6>Material Cost</h6>
+                    <div class="d-flex justify-content-between">
+                        <span>₹{{ "{:,.2f}".format(material_cost or 0) }}</span>
+                        <span class="text-muted">
+                            {% if total_cost and total_cost > 0 %}
+                            {{ ((material_cost / total_cost) * 100)|round(1) }}%
+                            {% else %}0%{% endif %}
+                        </span>
+                    </div>
+                    <div class="progress progress-thin">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {% if total_cost and total_cost > 0 %}{{ ((material_cost / total_cost) * 100) }}{% else %}0{% endif %}%" 
+                             aria-valuenow="{% if total_cost and total_cost > 0 %}{{ ((material_cost / total_cost) * 100) }}{% else %}0{% endif %}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Subtasks</h5>
+            </div>
+            <div class="card-body">
+                {% if subtasks %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Subtask</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for subtask in subtasks %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('task_details', task_id=subtask.task_id) }}">
+                                        {{ subtask.task_name }}
+                                    </a>
+                                </td>
+                                <td>
+                                    {{ subtask.planned_start_date }} to {{ subtask.planned_end_date }}
+                                    <br>
+                                    <small class="text-muted">{{ subtask.estimated_days }} days</small>
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if subtask.status == 'completed' %}bg-success
+                                        {% elif subtask.status == 'in_progress' %}bg-primary
+                                        {% elif subtask.status == 'delayed' %}bg-danger
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ subtask.status|replace('_', ' ')|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    ₹{{ "{:,.2f}".format(subtask.estimated_cost or 0) }}
+                                    {% if subtask.actual_cost and subtask.actual_cost > 0 %}
+                                    <br>
+                                    <small class="text-muted">Actual: ₹{{ "{:,.2f}".format(subtask.actual_cost) }}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No subtasks found for this task.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Materials Used</h5>
+            </div>
+            <div class="card-body">
+                {% if materials %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Material</th>
+                                <th>Quantity</th>
+                                <th>Unit Cost</th>
+                                <th>Total Cost</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mat in materials %}
+                            <tr>
+                                <td>{{ mat.material_name }}</td>
+                                <td>{{ mat.quantity }} {{ mat.unit }}</td>
+                                <td>₹{{ "{:,.2f}".format(mat.unit_cost or 0) }}</td>
+                                <td>₹{{ "{:,.2f}".format(mat.total_cost or 0) }}</td>
+                                <td>{{ mat.date_used }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No materials recorded for this task.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Workers Assigned</h5>
+            </div>
+            <div class="card-body">
+                {% if assignments %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Worker</th>
+                                <th>Specialization</th>
+                                <th>Hours</th>
+                                <th>Cost</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for assignment in assignments %}
+                            <tr>
+                                <td>{{ assignment.worker_name }}</td>
+                                <td>{{ assignment.specialization }}</td>
+                                <td>{{ assignment.hours_worked }}</td>
+<td>₹{{ "{:,.2f}".format((assignment.hours_worked * (assignment.daily_wage / 8)) if assignment.hours_worked and assignment.daily_wage else 0) }}</td>
+                                <td>{{ assignment.assignment_date }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No workers assigned to this task.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Progress History</h5>
+            </div>
+            <div class="card-body">
+                {% if progress %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Progress</th>
+                                <th>Recorded By</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in progress %}
+                            <tr>
+                                <td>{{ p.progress_date }}</td>
+                                <td>
+                                    <div class="progress progress-thin">
+                                        <div class="progress-bar bg-success" role="progressbar" 
+                                             style="width: {{ p.percentage_completed }}%" 
+                                             aria-valuenow="{{ p.percentage_completed }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100"></div>
+                                    </div>
+                                    <small>{{ p.percentage_completed }}%</small>
+                                </td>
+                                <td>{{ p.created_by_name }}</td>
+                                <td>{{ p.notes|truncate(30) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No progress recorded for this task.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Worker Modal -->
+<div class="modal fade" id="assignWorkerModal" tabindex="-1" aria-labelledby="assignWorkerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignWorkerModalLabel">Assign Worker to Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('assign_worker') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="task_id" value="{{ task.task_id }}">
+                    <div class="mb-3">
+                        <label for="worker_id" class="form-label">Worker</label>
+                        <select class="form-select" id="worker_id" name="worker_id" required>
+                            {% for worker in workers %}
+                            <option value="{{ worker.worker_id }}">{{ worker.name }} ({{ worker.specialization }}) - ₹{{ worker.daily_wage }}/day</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="assignment_date" class="form-label">Assignment Date</label>
+                        <input type="date" class="form-control" id="assignment_date" name="assignment_date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="hours_worked" class="form-label">Hours Worked</label>
+                        <input type="number" step="0.5" class="form-control" id="hours_worked" name="hours_worked" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Assign Worker</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Material Modal -->
+<div class="modal fade" id="addMaterialModal" tabindex="-1" aria-labelledby="addMaterialModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addMaterialModalLabel">Add Material to Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_material') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="task_id" value="{{ task.task_id }}">
+                    <div class="mb-3">
+                        <label for="material_id" class="form-label">Material</label>
+                        <select class="form-select" id="material_id" name="material_id" required>
+                            {% for mat in materials_list %}
+                            <option value="{{ mat.material_id }}">{{ mat.material_name }} (₹{{ mat.unit_cost }}/{{ mat.unit }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quantity" class="form-label">Quantity</label>
+                        <input type="number" step="0.01" class="form-control" id="quantity" name="quantity" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="date_used" class="form-label">Date Used</label>
+                        <input type="date" class="form-control" id="date_used" name="date_used" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="material_notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="material_notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-success">Add Material</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Record Progress Modal -->
+<div class="modal fade" id="recordProgressModal" tabindex="-1" aria-labelledby="recordProgressModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recordProgressModalLabel">Record Task Progress</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('record_progress') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="task_id" value="{{ task.task_id }}">
+                    <div class="mb-3">
+                        <label for="progress_date" class="form-label">Progress Date</label>
+                        <input type="date" class="form-control" id="progress_date" name="progress_date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="percentage_completed" class="form-label">Percentage Completed</label>
+                        <input type="number" min="0" max="100" step="0.1" class="form-control" 
+                               id="percentage_completed" name="percentage_completed" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="progress_notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="progress_notes" name="notes" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-info">Record Progress</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 
+{% block extra_js %}
+<script>
+    // Set today's date as default for modals
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Assign worker modal
+        document.getElementById('assignment_date').value = today;
+        
+        // Add material modal
+        document.getElementById('date_used').value = today;
+        
+        // Record progress modal
+        document.getElementById('progress_date').value = today;
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Weather Forecast - {{ project['project_name'] }}{% endblock %}
+{% block header %}Weather Forecast for {{ project['project_name'] }}{% endblock %}
+
+{% block actions %}
+<a href="{{ url_for('project_details', project_id=project['project_id']) }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Back to Project
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5>5-Day Weather Forecast for {{ location }}</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for weather in forecast if weather.datetime.split(' ')[1].startswith("12") %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 shadow">
+                    <div class="card-body text-center">
+                        <h5 class="text-primary">{{ weather.datetime.split(' ')[0] }}</h5>
+                        <img src="http://openweathermap.org/img/wn/{{ weather.icon }}@2x.png" alt="{{ weather.description }}">
+                        <h3>{{ weather.temp }}°C</h3>
+                        <p>{{ weather.description|title }}</p>
+                        <p>Feels like: {{ weather.feels_like }}°C</p>
+                        <p>Wind: {{ weather.wind_speed }} m/s</p>
+                        <p>Humidity: {{ weather.humidity }}%</p>
+                        <p>Pressure: {{ weather.pressure }} hPa</p>
+                        {% if weather.rain > 0 %}<p class="text-danger">Rain: {{ weather.rain }} mm</p>{% endif %}
+                        {% if weather.snow > 0 %}<p class="text-info">Snow: {{ weather.snow }} mm</p>{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5>Temperature & Rainfall Trend</h5>
+    </div>
+    <div class="card-body">
+        <canvas id="weatherChart" height="120"></canvas>
+    </div>
+</div>
+
+<!-- Recommendations Section -->
+<div class="card">
+    <div class="card-header">
+        <h5>Weather Impact Recommendations</h5>
+    </div>
+    <div class="card-body table-responsive">
+        <table class="table table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>Weather</th>
+                    <th>Impact on Construction</th>
+                    <th>Recommended Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for weather in forecast if weather.datetime.split(' ')[1].startswith("12") %}
+                <tr>
+                    <td>{{ weather.datetime.split(' ')[0] }}</td>
+                    <td><img src="http://openweathermap.org/img/wn/{{ weather.icon }}.png"> {{ weather.description|title }}</td>
+                    <td>
+                        {% if 'rain' in weather.description.lower() %}
+                            Potential delays for outdoor work, safety concerns
+                        {% elif 'snow' in weather.description.lower() %}
+                            Significant delays, hazardous conditions
+                        {% elif 'clear' in weather.description.lower() %}
+                            Ideal working conditions
+                        {% elif 'cloud' in weather.description.lower() %}
+                            Good working conditions
+                        {% elif 'wind' in weather.description.lower() and weather.wind_speed > 8 %}
+                            Crane operations may be affected
+                        {% else %}
+                            Normal working conditions
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if 'rain' in weather.description.lower() %}
+                            <ul><li>Schedule indoor tasks</li><li>Ensure proper drainage</li><li>Provide rain gear for workers</li></ul>
+                        {% elif 'snow' in weather.description.lower() %}
+                            <ul><li>Consider shutting down site</li><li>Clear snow from walkways</li><li>Monitor for ice hazards</li></ul>
+                        {% elif 'wind' in weather.description.lower() and weather.wind_speed > 8 %}
+                            <ul><li>Secure loose materials</li><li>Limit work at heights</li><li>Postpone crane operations</li></ul>
+                        {% else %}
+                            <span class="text-success">No special actions required</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('weatherChart').getContext('2d');
+const tempLabels = {{ temp_chart|map(attribute='date')|list|tojson }};
+const tempData = {{ temp_chart|map(attribute='temp')|list|tojson }};
+const rainData = {{ rain_chart|map(attribute='rain')|list|tojson }};
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: tempLabels,
+        datasets: [
+            {
+                label: 'Temperature (°C)',
+                data: tempData,
+                type: 'line',
+                borderColor: '#007bff',
+                fill: false
+            },
+            {
+                label: 'Rainfall (mm)',
+                data: rainData,
+                backgroundColor: 'rgba(255, 99, 132, 0.5)'
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.project_name }}{% endblock %}
+{% block header %}{{ project.project_name }}{% endblock %}
+
+{% block actions %}
+<div class="btn-group">
+    <a href="{{ url_for('project_report', project_id=project.project_id) }}" class="btn btn-info">
+        <i class="bi bi-graph-up"></i> Report
+    </a>
+    <a href="{{ url_for('export_project', project_id=project.project_id) }}" class="btn btn-success">
+        <i class="bi bi-download"></i> Export
+    </a>
+    <a href="{{ url_for('edit_project', project_id=project.project_id) }}" class="btn btn-warning">
+        <i class="bi bi-pencil"></i> Edit
+    </a>
+    <!-- Add weather button to actions -->
+<a href="{{ url_for('weather_forecast', project_id=project.project_id) }}" class="btn btn-info">
+    <i class="bi bi-cloud-sun"></i> Weather
+</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Project Details</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Description</dt>
+                    <dd class="col-sm-9">{{ project.description or 'No description' }}</dd>
+
+                    <dt class="col-sm-3">Duration</dt>
+                    <dd class="col-sm-9">{{ project.start_date }} to {{ project.end_date }}</dd>
+
+                    <dt class="col-sm-3">Budget</dt>
+                    <dd class="col-sm-9">
+                        ₹{{ "{:,.2f}".format(project.estimated_budget or 0) }} (estimated)
+                        {% if project.actual_budget and project.actual_budget > 0 %}
+                        <br>₹{{ "{:,.2f}".format(project.actual_budget) }} (actual)
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9">
+                        <span class="badge 
+                            {% if project.status == 'completed' %}bg-success
+                            {% elif project.status == 'in_progress' %}bg-primary
+                            {% elif project.status == 'on_hold' %}bg-warning
+                            {% elif project.status == 'cancelled' %}bg-danger
+                            {% else %}bg-secondary{% endif %}">
+                            {{ project.status|replace('_', ' ')|title }}
+                        </span>
+                    </dd>
+
+                    <dt class="col-sm-3">Created By</dt>
+                    <dd class="col-sm-9">{{ project.created_by_name }} on {{ project.created_at }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Project Progress</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    {% set completion_percentage = (progress.completed_tasks / progress.total_tasks * 100) if progress.total_tasks > 0 else 0 %}
+                    <h2>{{ "%.1f"|format(completion_percentage) }}%</h2>
+                    <div class="progress progress-thin">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ completion_percentage }}%" 
+                             aria-valuenow="{{ completion_percentage }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100"></div>
+                    </div>
+                    <small class="text-muted">{{ progress.completed_tasks }} of {{ progress.total_tasks }} tasks completed</small>
+                </div>
+                <div class="mb-3">
+                    <h4>₹{{ "{:,.2f}".format(progress.actual_cost or 0) }}</h4>
+                    <small class="text-muted">Actual Cost</small>
+                </div>
+                <div>
+                    <h4>₹{{ "{:,.2f}".format(progress.estimated_cost or 0) }}</h4>
+                    <small class="text-muted">Estimated Cost</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Project Timeline</h5>
+    </div>
+    <div class="card-body">
+        <div id="ganttChart" style="height: 400px;"></div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5>Tasks</h5>
+        <div>
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addTaskModal">
+                <i class="bi bi-plus"></i> Add Task
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Task Name</th>
+                        <th>Type</th>
+                        <th>Duration</th>
+                        <th>Cost</th>
+                        <th>Status</th>
+                        <th>Subtasks</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in main_tasks %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('task_details', task_id=task.task_id) }}">
+                                {{ task.task_name }}
+                            </a>
+                            {% if task.description %}
+                            <small class="text-muted d-block">{{ task.description|truncate(50) }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ task.task_type|title }}</td>
+                        <td>
+                            {{ task.planned_start_date }} to {{ task.planned_end_date }}
+                            <br>
+                            <small class="text-muted">{{ task.estimated_days }} days</small>
+                        </td>
+                        <td>
+                            ₹{{ "{:,.2f}".format(task.estimated_cost or 0) }}
+                            {% if task.actual_cost and task.actual_cost > 0 %}
+                            <br>
+                            <small class="text-muted">Actual: ₹{{ "{:,.2f}".format(task.actual_cost) }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge 
+                                {% if task.status == 'completed' %}bg-success
+                                {% elif task.status == 'in_progress' %}bg-primary
+                                {% elif task.status == 'delayed' %}bg-danger
+                                {% else %}bg-secondary{% endif %}">
+                                {{ task.status|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td>{{ task.subtask_count }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('task_details', task_id=task.task_id) }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ url_for('edit_task', task_id=task.task_id) }}" class="btn btn-outline-warning">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#addSubtaskModal" 
+                                    data-task-id="{{ task.task_id }}" data-task-name="{{ task.task_name }}">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Task Modal -->
+<div class="modal fade" id="addTaskModal" tabindex="-1" aria-labelledby="addTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addTaskModalLabel">Add New Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_task') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="project_id" value="{{ project.project_id }}">
+                    <div class="mb-3">
+                        <label for="task_name" class="form-label">Task Name</label>
+                        <input type="text" class="form-control" id="task_name" name="task_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="task_type" class="form-label">Task Type</label>
+                        <select class="form-select" id="task_type" name="task_type" required>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="planned_start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="planned_start_date" name="planned_start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="planned_end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="planned_end_date" name="planned_end_date" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="estimated_days" class="form-label">Estimated Days</label>
+                            <input type="number" class="form-control" id="estimated_days" name="estimated_days" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="estimated_cost" class="form-label">Estimated Cost (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="estimated_cost" name="estimated_cost" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Add Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Subtask Modal -->
+<div class="modal fade" id="addSubtaskModal" tabindex="-1" aria-labelledby="addSubtaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addSubtaskModalLabel">Add Subtask</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_task') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="project_id" value="{{ project.project_id }}">
+                    <input type="hidden" id="parent_task_id" name="parent_task_id">
+                    <div class="mb-3">
+                        <label for="subtask_name" class="form-label">Subtask Name</label>
+                        <input type="text" class="form-control" id="subtask_name" name="task_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="subtask_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="subtask_description" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="subtask_type" class="form-label">Task Type</label>
+                        <select class="form-select" id="subtask_type" name="task_type" required>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="subtask_start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="subtask_start_date" name="planned_start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="subtask_end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="subtask_end_date" name="planned_end_date" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="subtask_estimated_days" class="form-label">Estimated Days</label>
+                            <input type="number" class="form-control" id="subtask_estimated_days" name="estimated_days" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="subtask_estimated_cost" class="form-label">Estimated Cost (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="subtask_estimated_cost" name="estimated_cost" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Add Subtask</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Load Google Charts Gantt Package -->
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script>
+    google.charts.load('current', { 'packages': ['gantt'] });
+    google.charts.setOnLoadCallback(drawChart);
+
+    function toDate(dateStr) {
+        const parts = dateStr.split('-');
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+
+    function drawChart() {
+        var data = new google.visualization.DataTable();
+        data.addColumn('string', 'Task ID');
+        data.addColumn('string', 'Task Name');
+        data.addColumn('string', 'Resource');
+        data.addColumn('date', 'Start Date');
+        data.addColumn('date', 'End Date');
+        data.addColumn('number', 'Duration');
+        data.addColumn('number', 'Percent Complete');
+        data.addColumn('string', 'Dependencies');
+
+        data.addRows([
+            {% for task in gantt_tasks %}
+            [
+                'T{{ task.task_id }}',
+                '{{ task.task_name|escape }}',
+                '{{ task.status|title }}',
+                toDate('{{ task.start_date }}'),
+                toDate('{{ task.end_date }}'),
+                null,
+                {% if task.status == 'completed' %} 100
+                {% elif task.status == 'in_progress' %} 50
+                {% elif task.status == 'delayed' %} 25
+                {% else %} 0
+                {% endif %},
+                null
+            ]{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]);
+
+        var options = {
+            height: 400,
+            gantt: {
+                trackHeight: 30
+            }
+        };
+
+        var chart = new google.visualization.Gantt(document.getElementById('ganttChart'));
+        chart.draw(data, options);
+    }
+
+    // Set default dates in Add Task modal
+    document.addEventListener('DOMContentLoaded', function () {
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 7);
+        const endDateStr = endDate.toISOString().split('T')[0];
+
+        const startDateInput = document.getElementById('planned_start_date');
+        const endDateInput = document.getElementById('planned_end_date');
+        if (startDateInput && endDateInput) {
+            startDateInput.value = today;
+            endDateInput.value = endDateStr;
+        }
+    });
+
+    // Subtask modal handling
+    var addSubtaskModal = document.getElementById('addSubtaskModal');
+    if (addSubtaskModal) {
+        addSubtaskModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var taskId = button.getAttribute('data-task-id');
+            var taskName = button.getAttribute('data-task-name');
+
+            var modalTitle = addSubtaskModal.querySelector('.modal-title');
+            modalTitle.textContent = 'Add Subtask to ' + taskName;
+
+            var parentTaskInput = addSubtaskModal.querySelector('#parent_task_id');
+            parentTaskInput.value = taskId;
+
+            // Optional: reset form fields
+            addSubtaskModal.querySelector('#subtask_name').value = '';
+            addSubtaskModal.querySelector('#subtask_description').value = '';
+            addSubtaskModal.querySelector('#subtask_type').value = 'daily';
+            addSubtaskModal.querySelector('#subtask_start_date').value = '';
+            addSubtaskModal.querySelector('#subtask_end_date').value = '';
+            addSubtaskModal.querySelector('#subtask_estimated_days').value = '';
+            addSubtaskModal.querySelector('#subtask_estimated_cost').value = '';
+        });
+    }
+</script>
+{% endblock %}
+

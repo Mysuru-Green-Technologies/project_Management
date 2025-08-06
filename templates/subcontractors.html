@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Subcontractors{% endblock %}
+{% block header %}Subcontractor Management{% endblock %}
+
+{% block actions %}
+<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSubcontractorModal">
+    <i class="bi bi-plus-circle"></i> Add Subcontractor
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Company</th>
+                        <th>Contact</th>
+                        <th>Specialty</th>
+                        <th>Projects</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in subcontractors %}
+                    <tr>
+                        <td>
+                            <strong>{{ sub.company_name }}</strong>
+                            {% if sub.email %}
+                            <small class="text-muted d-block">{{ sub.email }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ sub.contact_person }}
+                            {% if sub.phone %}
+                            <small class="text-muted d-block">{{ sub.phone }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ sub.specialty }}</td>
+                        <td>
+                            {% if sub.projects %}
+                            {{ sub.projects }}
+                            {% else %}None assigned{% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" data-bs-toggle="modal" 
+                                    data-bs-target="#editSubcontractorModal{{ sub.subcontractor_id }}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('delete_subcontractor', subcontractor_id=sub.subcontractor_id) }}"
+                                      onsubmit="return confirm('Are you sure you want to delete this subcontractor?');">
+                                    <button type="submit" class="btn btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Edit Subcontractor Modal -->
+                    <div class="modal fade" id="editSubcontractorModal{{ sub.subcontractor_id }}" tabindex="-1" 
+                         aria-labelledby="editSubcontractorModalLabel{{ sub.subcontractor_id }}" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="editSubcontractorModalLabel{{ sub.subcontractor_id }}">
+                                        Edit {{ sub.company_name }}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <form method="POST" action="{{ url_for('update_subcontractor', subcontractor_id=sub.subcontractor_id) }}">
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label for="company_name{{ sub.subcontractor_id }}" class="form-label">Company Name</label>
+                                            <input type="text" class="form-control" id="company_name{{ sub.subcontractor_id }}" 
+                                                   name="company_name" value="{{ sub.company_name }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="contact_person{{ sub.subcontractor_id }}" class="form-label">Contact Person</label>
+                                            <input type="text" class="form-control" id="contact_person{{ sub.subcontractor_id }}" 
+                                                   name="contact_person" value="{{ sub.contact_person }}" required>
+                                        </div>
+                                        <div class="row mb-3">
+                                            <div class="col-md-6">
+                                                <label for="email{{ sub.subcontractor_id }}" class="form-label">Email</label>
+                                                <input type="email" class="form-control" id="email{{ sub.subcontractor_id }}" 
+                                                       name="email" value="{{ sub.email }}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="phone{{ sub.subcontractor_id }}" class="form-label">Phone</label>
+                                                <input type="tel" class="form-control" id="phone{{ sub.subcontractor_id }}" 
+                                                       name="phone" value="{{ sub.phone }}">
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="specialty{{ sub.subcontractor_id }}" class="form-label">Specialty</label>
+                                            <input type="text" class="form-control" id="specialty{{ sub.subcontractor_id }}" 
+                                                   name="specialty" value="{{ sub.specialty }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="contract_details{{ sub.subcontractor_id }}" class="form-label">Contract Details</label>
+                                            <textarea class="form-control" id="contract_details{{ sub.subcontractor_id }}" 
+                                                      name="contract_details" rows="3">{{ sub.contract_details }}</textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Assigned Projects</label>
+                                            <div class="form-control" style="height: auto; max-height: 200px; overflow-y: auto;">
+                                                {% for project in projects %}
+                                                <div class="form-check">
+                                                   <input class="form-check-input" type="checkbox" 
+                                                          id="project{{ sub.subcontractor_id }}_{{ project.project_id }}" 
+                                                             name="projects" value="{{ project.project_id }}"
+                                                              {% if sub.projects and project.project_name in sub.projects %}checked{% endif %}>
+           
+                                                                <label class="form-check-label" for="project{{ sub.subcontractor_id }}_{{ project.project_id }}">
+                                                                {{ project.project_name }}
+                                                                </label>
+                                                                 </div>
+
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Subcontractor Modal -->
+<div class="modal fade" id="addSubcontractorModal" tabindex="-1" aria-labelledby="addSubcontractorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addSubcontractorModalLabel">Add New Subcontractor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_subcontractor') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="company_name" class="form-label">Company Name</label>
+                        <input type="text" class="form-control" id="company_name" name="company_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contact_person" class="form-label">Contact Person</label>
+                        <input type="text" class="form-control" id="contact_person" name="contact_person" required>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label">Phone</label>
+                            <input type="tel" class="form-control" id="phone" name="phone">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="specialty" class="form-label">Specialty</label>
+                        <input type="text" class="form-control" id="specialty" name="specialty" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contract_details" class="form-label">Contract Details</label>
+                        <textarea class="form-control" id="contract_details" name="contract_details" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Assign to Projects</label>
+                        <div class="form-control" style="height: auto; max-height: 200px; overflow-y: auto;">
+                            {% for project in projects %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" 
+                                       id="project_{{ project.project_id }}" 
+                                       name="projects" value="{{ project.project_id }}">
+                                <label class="form-check-label" for="project_{{ project.project_id }}">
+                                    {{ project.project_name }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Add Subcontractor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
