@@ -130,7 +130,40 @@ def register():
     
     return render_template('register.html')
 
-
+@app.route('/projects/<int:project_id>/add_expenditure', methods=['POST'])
+@login_required
+def add_expenditure(project_id):
+    description = request.form['description']
+    amount = request.form['amount']
+    expenditure_date = request.form['expenditure_date']
+    category = request.form.get('category', 'Other')
+    
+    cur = get_db_connection()
+    try:
+        cur.execute("""
+            INSERT INTO project_expenditures (project_id, description, amount, expenditure_date, category, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (project_id, description, amount, expenditure_date, category, session['user_id']))
+        mysql.connection.commit()
+        
+        # Update project actual budget
+        cur.execute("""
+            UPDATE projects 
+            SET actual_budget = COALESCE((
+                SELECT SUM(amount) FROM project_expenditures WHERE project_id = %s
+            ), 0)
+            WHERE project_id = %s
+        """, (project_id, project_id))
+        mysql.connection.commit()
+        
+        flash('Expenditure added successfully', 'success')
+    except Exception as e:
+        mysql.connection.rollback()
+        flash(f'Error adding expenditure: {str(e)}', 'danger')
+    finally:
+        cur.close()
+    
+    return redirect(url_for('project_details', project_id=project_id))
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -259,6 +292,20 @@ def project_details(project_id):
     """, (project_id,))
     project = cur.fetchone()
     
+    # Get expenditures for this project
+    cur.execute("""
+        SELECT pe.*, u.username as created_by_name 
+        FROM project_expenditures pe
+        JOIN users u ON pe.created_by = u.user_id
+        WHERE pe.project_id = %s
+        ORDER BY pe.expenditure_date DESC
+    """, (project_id,))
+    expenditures = cur.fetchall()
+
+    # Calculate total expenditures
+    from decimal import Decimal  # Make sure Decimal is imported
+    total_expenditures = sum(Decimal(str(e['amount'])) for e in expenditures) if expenditures else Decimal('0')
+
     # Get tasks for this project (only main tasks with no parent)
     cur.execute("""
         SELECT t.*, 
@@ -268,11 +315,11 @@ def project_details(project_id):
         ORDER BY t.planned_start_date
     """, (project_id,))
     main_tasks = cur.fetchall()
-    
+
     # Get all workers
     cur.execute("SELECT * FROM workers ORDER BY name")
     workers = cur.fetchall()
-    
+
     # Get project progress - ensure we handle NULL values
     cur.execute("""
         SELECT 
@@ -284,8 +331,8 @@ def project_details(project_id):
         WHERE project_id = %s
     """, (project_id,))
     progress = cur.fetchone()
-    
-    # ✅ Get tasks for Gantt chart (newly added)
+
+    # Get tasks for Gantt chart
     cur.execute("""
         SELECT 
             task_id, 
@@ -299,20 +346,22 @@ def project_details(project_id):
         ORDER BY planned_start_date
     """, (project_id,))
     gantt_tasks = cur.fetchall()
-    
+
     # Get materials for dropdown
     cur.execute("SELECT * FROM materials ORDER BY material_name")
     materials_list = cur.fetchall()
-    
+
     cur.close()
-    
+
     return render_template('project_details.html', 
                            project=project, 
                            main_tasks=main_tasks,
                            workers=workers,
                            progress=progress,
                            materials_list=materials_list,
-                           gantt_tasks=gantt_tasks)  # Pass to template
+                           gantt_tasks=gantt_tasks,
+                           expenditures=expenditures,
+                           total_expenditures=total_expenditures)
 
 
 @app.route('/tasks/add', methods=['POST'])
@@ -681,6 +730,11 @@ import json
 from flask import render_template, redirect, url_for, flash
 from flask_login import login_required
 
+from flask import render_template
+from datetime import datetime, date
+from decimal import Decimal
+import json
+
 @app.route('/reports/project/<int:project_id>')
 def project_report(project_id):
     cur = get_db_connection()
@@ -689,16 +743,26 @@ def project_report(project_id):
     cur.execute("SELECT * FROM projects WHERE project_id = %s", (project_id,))
     project = cur.fetchone()
     
-    # Get all tasks with their costs
+    # Get expenditures
+    cur.execute("""
+        SELECT * 
+        FROM project_expenditures 
+        WHERE project_id = %s 
+        ORDER BY expenditure_date
+    """, (project_id,))
+    expenditures = cur.fetchall()
+    total_expenditures = sum(Decimal(str(e['amount'])) for e in expenditures) if expenditures else Decimal('0')
+    
+    # Get all tasks with their material and labor costs
     cur.execute("""
         SELECT t.*, 
                (SELECT IFNULL(SUM(tm.total_cost), 0)
-               FROM task_materials tm
-               WHERE tm.task_id = t.task_id) as material_cost,
+                FROM task_materials tm
+                WHERE tm.task_id = t.task_id) AS material_cost,
                (SELECT IFNULL(SUM(ta.hours_worked * (w.daily_wage / 8)), 0)
-               FROM task_assignments ta
-               JOIN workers w ON ta.worker_id = w.worker_id
-               WHERE ta.task_id = t.task_id) as labor_cost
+                FROM task_assignments ta
+                JOIN workers w ON ta.worker_id = w.worker_id
+                WHERE ta.task_id = t.task_id) AS labor_cost
         FROM tasks t
         WHERE t.project_id = %s
         ORDER BY t.planned_start_date
@@ -709,11 +773,12 @@ def project_report(project_id):
     total_estimated = sum(t['estimated_cost'] for t in tasks)
     total_material = sum(t['material_cost'] for t in tasks)
     total_labor = sum(t['labor_cost'] for t in tasks)
-    total_actual = total_material + total_labor
+    total_task_costs = total_material + total_labor
+    total_actual = total_task_costs + total_expenditures
     
     # Get progress data for charts
     cur.execute("""
-        SELECT progress_date, AVG(percentage_completed) as avg_progress
+        SELECT progress_date, AVG(percentage_completed) AS avg_progress
         FROM daily_progress
         WHERE task_id IN (SELECT task_id FROM tasks WHERE project_id = %s)
         GROUP BY progress_date
@@ -726,13 +791,13 @@ def project_report(project_id):
     # Prepare data for charts
     progress_dates = [str(p['progress_date']) for p in progress_data]
     progress_values = [float(p['avg_progress']) for p in progress_data]
-    
+
     cost_data = {
-        'labels': ['Materials', 'Labor'],
-        'values': [float(total_material), float(total_labor)]
+        'labels': ['Materials', 'Labor', 'Expenditures'],
+        'values': [float(total_material), float(total_labor), float(total_expenditures)]
     }
 
-    # ✅ Budget Forecast Calculation
+    # Budget Forecast Calculation
     today = date.today()
 
     # Ensure start and end dates are datetime.date objects
@@ -744,24 +809,27 @@ def project_report(project_id):
     completion_percentage = (days_passed / total_days) * 100 if total_days > 0 else 0
 
     budget_forecast = {
-    'total_days': total_days,
-    'days_passed': days_passed,
-    'completion_percentage': round(completion_percentage, 2),
-    'budget_utilization': round(float(total_actual) / float(project['estimated_budget']) * 100, 2) if project['estimated_budget'] > 0 else 0,
-    'forecast_completion': round(float(project['estimated_budget']) * (completion_percentage / 100), 2) if completion_percentage > 0 else 0,
-    'variance': round(float(total_actual) - (float(project['estimated_budget']) * (completion_percentage / 100)), 2) if completion_percentage > 0 else 0
-}
+        'total_days': total_days,
+        'days_passed': days_passed,
+        'completion_percentage': round(completion_percentage, 2),
+        'budget_utilization': round(float(total_actual) / float(project['estimated_budget']) * 100, 2) if project['estimated_budget'] > 0 else 0,
+        'forecast_completion': round(float(project['estimated_budget']) * (completion_percentage / 100), 2) if completion_percentage > 0 else 0,
+        'variance': round(float(total_actual) - (float(project['estimated_budget']) * (completion_percentage / 100)), 2) if completion_percentage > 0 else 0
+    }
 
     return render_template('project_report.html',
-                       project=project,
-                       tasks=tasks,
-                       total_estimated=total_estimated,
-                       total_actual=total_actual,
-                       progress_dates=json.dumps(progress_dates),
-                       progress_values=json.dumps(progress_values),
-                       cost_data=json.dumps(cost_data),
-                       budget_forecast=budget_forecast,
-                       abs=abs)  # <--- Add this line
+                           project=project,
+                           tasks=tasks,
+                           expenditures=expenditures,
+                           total_estimated=total_estimated,
+                           total_task_costs=total_task_costs,
+                           total_expenditures=total_expenditures,
+                           total_actual=total_actual,
+                           progress_dates=json.dumps(progress_dates),
+                           progress_values=json.dumps(progress_values),
+                           cost_data=json.dumps(cost_data),
+                           budget_forecast=budget_forecast,
+                           abs=abs)
 
 @app.route('/export/project/<int:project_id>')
 # @login_required
@@ -856,10 +924,25 @@ def export_project(project_id):
             ORDER BY tm.date_used
         """, (project_id,))
         materials = cur.fetchall()
+
+        # Get expenditures
+        cur.execute("""
+            SELECT 
+                e.expenditure_date, 
+                e.description, 
+                e.category, 
+                e.amount,
+                u.username as created_by_name
+            FROM project_expenditures e
+            LEFT JOIN users u ON e.created_by = u.user_id
+            WHERE e.project_id = %s
+            ORDER BY e.expenditure_date
+        """, (project_id,))
+        expenditures = cur.fetchall()
         
         # Create Excel file
         with pd.ExcelWriter('project_report.xlsx') as writer:
-            # Project summary sheet
+            # Project summary sheet - now includes expenditures
             summary_data = {
                 'Project Name': [project['project_name']],
                 'Start Date': [project['start_date']],
@@ -867,8 +950,10 @@ def export_project(project_id):
                 'Status': [project['status'].replace('_', ' ').title()],
                 'Estimated Budget': [project['estimated_budget']],
                 'Total Estimated Cost': [sum(t['estimated_cost'] for t in tasks)],
-                'Total Actual Cost': [sum(t['total_cost'] for t in tasks)],
-                'Budget Variance': [sum(t['total_cost'] for t in tasks) - project['estimated_budget']]
+                'Total Task Costs': [sum(t['total_cost'] for t in tasks)],
+                'Total Expenditures': [sum(e['amount'] for e in expenditures)],
+                'Total Actual Cost': [sum(t['total_cost'] for t in tasks) + sum(e['amount'] for e in expenditures)],
+                'Budget Variance': [sum(t['total_cost'] for t in tasks) + sum(e['amount'] for e in expenditures) - project['estimated_budget']]
             }
             pd.DataFrame(summary_data).to_excel(writer, sheet_name='Project Summary', index=False)
             
@@ -926,14 +1011,28 @@ def export_project(project_id):
                 })
             materials_df = pd.DataFrame(materials_data)
             materials_df.to_excel(writer, sheet_name='Materials', index=False)
+
+            # Expenditures sheet
+            expenditures_data = []
+            for expenditure in expenditures:
+                expenditures_data.append({
+                    'Date': expenditure['expenditure_date'],
+                    'Description': expenditure['description'],
+                    'Category': expenditure['category'],
+                    'Amount': expenditure['amount'],
+                    'Added By': expenditure['created_by_name']
+                })
+            expenditures_df = pd.DataFrame(expenditures_data)
+            expenditures_df.to_excel(writer, sheet_name='Expenditures', index=False)
             
-            # Cost Summary sheet
+            # Cost Summary sheet (includes expenditures now)
             cost_summary = {
-                'Cost Type': ['Materials', 'Labor', 'Total'],
+                'Cost Type': ['Materials', 'Labor', 'Expenditures', 'Total'],
                 'Amount': [
                     sum(t['material_cost'] for t in tasks),
                     sum(t['labor_cost'] for t in tasks),
-                    sum(t['total_cost'] for t in tasks)
+                    sum(e['amount'] for e in expenditures),
+                    sum(t['total_cost'] for t in tasks) + sum(e['amount'] for e in expenditures)
                 ]
             }
             pd.DataFrame(cost_summary).to_excel(writer, sheet_name='Cost Summary', index=False)
@@ -946,7 +1045,6 @@ def export_project(project_id):
             cur.close()
         flash(f"Error generating report: {str(e)}", "danger")
         return redirect(url_for('project_details', project_id=project_id))
-    
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx'}
