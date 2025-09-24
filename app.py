@@ -23,9 +23,9 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # MySQL configurations
-app.config['MYSQL_HOST'] = '192.168.0.174'
-app.config['MYSQL_USER'] = 'remote_control'
-app.config['MYSQL_PASSWORD'] = 'Remote_control'
+app.config['MYSQL_HOST'] = 'localhost'
+app.config['MYSQL_USER'] = 'root'
+app.config['MYSQL_PASSWORD'] = 'root'
 app.config['MYSQL_DB'] = 'construction_project_management'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
@@ -292,20 +292,6 @@ def project_details(project_id):
     """, (project_id,))
     project = cur.fetchone()
     
-    # Get expenditures for this project
-    cur.execute("""
-        SELECT pe.*, u.username as created_by_name 
-        FROM project_expenditures pe
-        JOIN users u ON pe.created_by = u.user_id
-        WHERE pe.project_id = %s
-        ORDER BY pe.expenditure_date DESC
-    """, (project_id,))
-    expenditures = cur.fetchall()
-
-    # Calculate total expenditures
-    from decimal import Decimal  # Make sure Decimal is imported
-    total_expenditures = sum(Decimal(str(e['amount'])) for e in expenditures) if expenditures else Decimal('0')
-
     # Get tasks for this project (only main tasks with no parent)
     cur.execute("""
         SELECT t.*, 
@@ -315,23 +301,26 @@ def project_details(project_id):
         ORDER BY t.planned_start_date
     """, (project_id,))
     main_tasks = cur.fetchall()
-
+    
     # Get all workers
     cur.execute("SELECT * FROM workers ORDER BY name")
     workers = cur.fetchall()
-
+    
     # Get project progress - ensure we handle NULL values
     cur.execute("""
         SELECT 
             COUNT(*) as total_tasks,
             SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_tasks,
+            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_tasks,
+            SUM(CASE WHEN status = 'not_started' THEN 1 ELSE 0 END) as not_started_tasks,
+            SUM(CASE WHEN status = 'delayed' THEN 1 ELSE 0 END) as delayed_tasks,
             COALESCE(SUM(estimated_cost), 0) as estimated_cost,
             COALESCE(SUM(actual_cost), 0) as actual_cost
         FROM tasks
         WHERE project_id = %s
     """, (project_id,))
     progress = cur.fetchone()
-
+    
     # Get tasks for Gantt chart
     cur.execute("""
         SELECT 
@@ -346,13 +335,77 @@ def project_details(project_id):
         ORDER BY planned_start_date
     """, (project_id,))
     gantt_tasks = cur.fetchall()
-
+    
     # Get materials for dropdown
     cur.execute("SELECT * FROM materials ORDER BY material_name")
     materials_list = cur.fetchall()
-
+    
+    # Get expenditures for this project
+    cur.execute("""
+        SELECT pe.*, u.username as created_by_name 
+        FROM project_expenditures pe
+        JOIN users u ON pe.created_by = u.user_id
+        WHERE pe.project_id = %s
+        ORDER BY pe.expenditure_date DESC
+    """, (project_id,))
+    expenditures = cur.fetchall()
+    
+    # Calculate total expenditures
+    total_expenditures = sum(e['amount'] for e in expenditures) if expenditures else 0
+    
+    # Get documents for this project
+    cur.execute("""
+        SELECT d.*, u.username as uploaded_by 
+        FROM documents d
+        JOIN users u ON d.uploaded_by = u.user_id
+        WHERE d.project_id = %s
+        ORDER BY d.upload_date DESC
+    """, (project_id,))
+    documents = cur.fetchall()
+    
+    # Get worker assignments for this project
+    cur.execute("""
+        SELECT 
+    ta.worker_id,
+    w.name as worker_name,
+    w.specialization,
+    SUM(ta.hours_worked) as hours_worked
+FROM task_assignments ta
+JOIN tasks t ON ta.task_id = t.task_id
+JOIN workers w ON ta.worker_id = w.worker_id
+WHERE t.project_id = %s
+GROUP BY ta.worker_id, w.name, w.specialization
+ORDER BY hours_worked DESC
+    """, (project_id,))
+    worker_assignments = cur.fetchall()
+    
+    # Get subcontractors for this project
+    cur.execute("""
+        SELECT s.* 
+        FROM subcontractors s
+        JOIN subcontractor_projects sp ON s.subcontractor_id = sp.subcontractor_id
+        WHERE sp.project_id = %s
+        ORDER BY s.company_name
+    """, (project_id,))
+    subcontractors = cur.fetchall()
+    
+    # Calculate labor and material costs
+    cur.execute("""
+        SELECT 
+            COALESCE(SUM(ta.hours_worked * (w.daily_wage / 8)), 0) as labor_cost,
+            COALESCE(SUM(tm.total_cost), 0) as material_cost
+        FROM tasks t
+        LEFT JOIN task_assignments ta ON t.task_id = ta.task_id
+        LEFT JOIN workers w ON ta.worker_id = w.worker_id
+        LEFT JOIN task_materials tm ON t.task_id = tm.task_id
+        WHERE t.project_id = %s
+    """, (project_id,))
+    cost_data = cur.fetchone()
+    labor_cost = cost_data['labor_cost'] or 0
+    material_cost = cost_data['material_cost'] or 0
+    
     cur.close()
-
+    
     return render_template('project_details.html', 
                            project=project, 
                            main_tasks=main_tasks,
@@ -361,7 +414,12 @@ def project_details(project_id):
                            materials_list=materials_list,
                            gantt_tasks=gantt_tasks,
                            expenditures=expenditures,
-                           total_expenditures=total_expenditures)
+                           total_expenditures=total_expenditures,
+                           documents=documents,
+                           worker_assignments=worker_assignments,
+                           subcontractors=subcontractors,
+                           labor_cost=labor_cost,
+                           material_cost=material_cost)
 
 
 @app.route('/tasks/add', methods=['POST'])

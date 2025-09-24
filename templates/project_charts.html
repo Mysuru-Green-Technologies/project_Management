@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.project_name }} - Charts{% endblock %}
+{% block header %}{{ project.project_name }} - Charts & Analytics{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Task Status Distribution</h5>
+            </div>
+            <div class="card-body">
+                <img src="{{ url_for('generate_chart', project_id=project.project_id, chart_type='task_status') }}" 
+                     alt="Task Status Chart" class="img-fluid">
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Budget vs Actual Spending</h5>
+            </div>
+            <div class="card-body">
+                <img src="{{ url_for('generate_chart', project_id=project.project_id, chart_type='budget_vs_actual') }}" 
+                     alt="Budget vs Actual Chart" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Expenditure by Category</h5>
+            </div>
+            <div class="card-body">
+                <img src="{{ url_for('generate_chart', project_id=project.project_id, chart_type='expenditure_categories') }}" 
+                     alt="Expenditure by Category Chart" class="img-fluid">
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Project Timeline</h5>
+            </div>
+            <div class="card-body">
+                <div id="ganttChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Raw Data</h5>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs" id="dataTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" type="button" role="tab">Tasks</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="expenditures-tab" data-bs-toggle="tab" data-bs-target="#expenditures" type="button" role="tab">Expenditures</button>
+            </li>
+        </ul>
+        <div class="tab-content" id="dataTabsContent">
+            <div class="tab-pane fade show active" id="tasks" role="tabpanel">
+                <div class="table-responsive mt-3">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Task</th>
+                                <th>Planned Start</th>
+                                <th>Planned End</th>
+                                <th>Actual Start</th>
+                                <th>Actual End</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in timeline_data %}
+                            <tr>
+                                <td>{{ task.task_name }}</td>
+                                <td>{{ task.planned_start_date }}</td>
+                                <td>{{ task.planned_end_date }}</td>
+                                <td>{{ task.actual_start_date or '-' }}</td>
+                                <td>{{ task.actual_end_date or '-' }}</td>
+                                <td>
+                                    <span class="badge 
+                                        {% if task.status == 'completed' %}bg-success
+                                        {% elif task.status == 'in_progress' %}bg-primary
+                                        {% elif task.status == 'delayed' %}bg-danger
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ task.status|replace('_', ' ')|title }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="expenditures" role="tabpanel">
+                <div class="table-responsive mt-3">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Total Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in expenditure_categories %}
+                            <tr>
+                                <td>{{ category.category }}</td>
+                                <td>₹{{ "{:,.2f}".format(category.total) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Load Google Charts Gantt Package -->
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script>
+    google.charts.load('current', { 'pack

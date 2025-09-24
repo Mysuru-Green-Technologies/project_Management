@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.project_name }} - Expenditures{% endblock %}
+{% block header %}{{ project.project_name }} - Expenditures{% endblock %}
+
+{% block actions %}
+<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExpenditureModal">
+    <i class="bi bi-plus-circle"></i> Add Expenditure
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Expenditure Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Total Expenditures</h6>
+                                <h4 class="card-text">₹{{ "{:,.2f}".format(total_expenditures) }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Estimated Budget</h6>
+                                <h4 class="card-text">₹{{ "{:,.2f}".format(project.estimated_budget or 0) }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Remaining Budget</h6>
+                                <h4 class="card-text">₹{{ "{:,.2f}".format((project.estimated_budget or 0) - total_expenditures) }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Expenditure by Category</h5>
+            </div>
+            <div class="card-body">
+                <img src="{{ url_for('generate_chart', project_id=project.project_id, chart_type='expenditure_categories') }}" 
+                     alt="Expenditure by Category Chart" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>Added By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for expenditure in expenditures %}
+                    <tr>
+                        <td>{{ expenditure.expenditure_date }}</td>
+                        <td>{{ expenditure.description }}</td>
+                        <td>{{ expenditure.category }}</td>
+                        <td>₹{{ "{:,.2f}".format(expenditure.amount) }}</td>
+                        <td>{{ expenditure.created_by_name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="3">Total</th>
+                        <th>₹{{ "{:,.2f}".format(total_expenditures) }}</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Expenditure Modal -->
+{% include 'modals/add_expenditure_modal.html' %}
+{% endblock %}

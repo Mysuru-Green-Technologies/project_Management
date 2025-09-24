@@ -1,0 +1,243 @@
+<!-- Add Task Modal -->
+<div class="modal fade" id="addTaskModal" tabindex="-1" aria-labelledby="addTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addTaskModalLabel">Add New Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_task') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="project_id" value="{{ project.project_id }}">
+                    <div class="mb-3">
+                        <label for="task_name" class="form-label">Task Name</label>
+                        <input type="text" class="form-control" id="task_name" name="task_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="task_type" class="form-label">Task Type</label>
+                        <select class="form-select" id="task_type" name="task_type" required>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="planned_start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="planned_start_date" name="planned_start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="planned_end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="planned_end_date" name="planned_end_date" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="estimated_days" class="form-label">Estimated Days</label>
+                            <input type="number" class="form-control" id="estimated_days" name="estimated_days" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="estimated_cost" class="form-label">Estimated Cost (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="estimated_cost" name="estimated_cost" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Add Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Expenditure Modal -->
+<div class="modal fade" id="addExpenditureModal" tabindex="-1" aria-labelledby="addExpenditureModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addExpenditureModalLabel">Add Project Expenditure</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_expenditure', project_id=project.project_id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="description" name="description" required>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="amount" class="form-label">Amount (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="expenditure_date" class="form-label">Date</label>
+                            <input type="date" class="form-control" id="expenditure_date" name="expenditure_date" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <select class="form-select" id="category" name="category">
+                            <option value="Materials">Materials</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Labor">Labor</option>
+                            <option value="Permits">Permits</option>
+                            <option value="Utilities">Utilities</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Add Expenditure</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Document Modal -->
+<div class="modal fade" id="uploadDocumentModal" tabindex="-1" aria-labelledby="uploadDocumentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadDocumentModalLabel">Upload Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('upload_document') }}" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="project_id" value="{{ project.project_id }}">
+                    <div class="mb-3">
+                        <label for="document_name" class="form-label">Document Name</label>
+                        <input type="text" class="form-control" id="document_name" name="document_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Document File</label>
+                        <input class="form-control" type="file" id="file" name="file" required>
+                        <small class="text-muted">Allowed formats: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Subtask Modal -->
+<div class="modal fade" id="addSubtaskModal" tabindex="-1" aria-labelledby="addSubtaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addSubtaskModalLabel">Add Subtask</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_task') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="project_id" value="{{ project.project_id }}">
+                    <input type="hidden" id="parent_task_id" name="parent_task_id">
+                    <div class="mb-3">
+                        <label for="subtask_name" class="form-label">Subtask Name</label>
+                        <input type="text" class="form-control" id="subtask_name" name="task_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="subtask_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="subtask_description" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="subtask_type" class="form-label">Task Type</label>
+                        <select class="form-select" id="subtask_type" name="task_type" required>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="subtask_start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="subtask_start_date" name="planned_start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="subtask_end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="subtask_end_date" name="planned_end_date" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="subtask_estimated_days" class="form-label">Estimated Days</label>
+                            <input type="number" class="form-control" id="subtask_estimated_days" name="estimated_days" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="subtask_estimated_cost" class="form-label">Estimated Cost (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="subtask_estimated_cost" name="estimated_cost" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Add Subtask</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Set default dates in Add Task modal
+    document.addEventListener('DOMContentLoaded', function () {
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 7);
+        const endDateStr = endDate.toISOString().split('T')[0];
+
+        const startDateInput = document.getElementById('planned_start_date');
+        const endDateInput = document.getElementById('planned_end_date');
+        if (startDateInput && endDateInput) {
+            startDateInput.value = today;
+            endDateInput.value = endDateStr;
+        }
+
+        // Set today's date for expenditure date
+        const expenditureDateInput = document.getElementById('expenditure_date');
+        if (expenditureDateInput) {
+            expenditureDateInput.value = today;
+        }
+    });
+
+    // Subtask modal handling
+    var addSubtaskModal = document.getElementById('addSubtaskModal');
+    if (addSubtaskModal) {
+        addSubtaskModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var taskId = button.getAttribute('data-task-id');
+            var taskName = button.getAttribute('data-task-name');
+
+            var modalTitle = addSubtaskModal.querySelector('.modal-title');
+            modalTitle.textContent = 'Add Subtask to ' + taskName;
+
+            var parentTaskInput = addSubtaskModal.querySelector('#parent_task_id');
+            parentTaskInput.value = taskId;
+
+            // Optional: reset form fields
+            addSubtaskModal.querySelector('#subtask_name').value = '';
+            addSubtaskModal.querySelector('#subtask_description').value = '';
+            addSubtaskModal.querySelector('#subtask_type').value = 'daily';
+            addSubtaskModal.querySelector('#subtask_start_date').value = '';
+            addSubtaskModal.querySelector('#subtask_end_date').value = '';
+            addSubtaskModal.querySelector('#subtask_estimated_days').value = '';
+            addSubtaskModal.querySelector('#subtask_estimated_cost').value = '';
+        });
+    }
+</script>
