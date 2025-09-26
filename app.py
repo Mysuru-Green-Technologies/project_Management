@@ -69,6 +69,226 @@ def get_user_role():
         cur.close()
         return role
     return None
+@app.route('/expenditures/<int:expenditure_id>')
+@login_required
+def view_expenditure(expenditure_id):
+    cur = get_db_connection()
+    
+    # Get expenditure details
+    cur.execute("""
+        SELECT pe.*, p.project_name, u.username as created_by_name 
+        FROM project_expenditures pe
+        JOIN projects p ON pe.project_id = p.project_id
+        JOIN users u ON pe.created_by = u.user_id
+        WHERE pe.expenditure_id = %s
+    """, (expenditure_id,))
+    expenditure = cur.fetchone()
+    
+    # Get attached documents
+    cur.execute("""
+        SELECT d.*, u.username as uploaded_by 
+        FROM expenditure_documents ed
+        JOIN documents d ON ed.document_id = d.document_id
+        JOIN users u ON d.uploaded_by = u.user_id
+        WHERE ed.expenditure_id = %s
+        ORDER BY d.upload_date DESC
+    """, (expenditure_id,))
+    documents = cur.fetchall()
+    
+    cur.close()
+    
+    if not expenditure:
+        flash('Expenditure not found', 'danger')
+        return redirect(url_for('projects'))
+    
+    return render_template('view_expenditure.html', 
+                         expenditure=expenditure,
+                         documents=documents)
+
+@app.route('/expenditures/<int:expenditure_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_expenditure(expenditure_id):
+    cur = get_db_connection()
+    
+    if request.method == 'POST':
+        description = request.form['description']
+        amount = request.form['amount']
+        expenditure_date = request.form['expenditure_date']
+        category = request.form.get('category', 'Other')
+        
+        try:
+            cur.execute("""
+                UPDATE project_expenditures 
+                SET description = %s, amount = %s, expenditure_date = %s, category = %s
+                WHERE expenditure_id = %s
+            """, (description, amount, expenditure_date, category, expenditure_id))
+            mysql.connection.commit()
+            
+            # Get project_id for redirect
+            cur.execute("SELECT project_id FROM project_expenditures WHERE expenditure_id = %s", (expenditure_id,))
+            project_id = cur.fetchone()['project_id']
+            
+            # Update project actual budget
+            cur.execute("""
+                UPDATE projects 
+                SET actual_budget = COALESCE((
+                    SELECT SUM(amount) FROM project_expenditures WHERE project_id = %s
+                ), 0)
+                WHERE project_id = %s
+            """, (project_id, project_id))
+            mysql.connection.commit()
+            
+            flash('Expenditure updated successfully', 'success')
+            return redirect(url_for('project_details', project_id=project_id))
+        except Exception as e:
+            mysql.connection.rollback()
+            flash(f'Error updating expenditure: {str(e)}', 'danger')
+        finally:
+            cur.close()
+    
+    # GET request - show edit form
+    cur.execute("""
+        SELECT pe.*, p.project_name 
+        FROM project_expenditures pe
+        JOIN projects p ON pe.project_id = p.project_id
+        WHERE pe.expenditure_id = %s
+    """, (expenditure_id,))
+    expenditure = cur.fetchone()
+    cur.close()
+    
+    if not expenditure:
+        flash('Expenditure not found', 'danger')
+        return redirect(url_for('projects'))
+    
+    return render_template('edit_expenditure.html', expenditure=expenditure)
+
+@app.route('/expenditures/<int:expenditure_id>/delete', methods=['POST'])
+@login_required
+def delete_expenditure(expenditure_id):
+    cur = get_db_connection()
+    
+    try:
+        # Get project_id before deletion for redirect
+        cur.execute("SELECT project_id FROM project_expenditures WHERE expenditure_id = %s", (expenditure_id,))
+        result = cur.fetchone()
+        
+        if not result:
+            flash('Expenditure not found', 'danger')
+            return redirect(url_for('projects'))
+        
+        project_id = result['project_id']
+        
+        # Delete expenditure
+        cur.execute("DELETE FROM project_expenditures WHERE expenditure_id = %s", (expenditure_id,))
+        mysql.connection.commit()
+        
+        # Update project actual budget
+        cur.execute("""
+            UPDATE projects 
+            SET actual_budget = COALESCE((
+                SELECT SUM(amount) FROM project_expenditures WHERE project_id = %s
+            ), 0)
+            WHERE project_id = %s
+        """, (project_id, project_id))
+        mysql.connection.commit()
+        
+        flash('Expenditure deleted successfully', 'success')
+    except Exception as e:
+        mysql.connection.rollback()
+        flash(f'Error deleting expenditure: {str(e)}', 'danger')
+    finally:
+        cur.close()
+    
+    return redirect(url_for('project_details', project_id=project_id))
+
+@app.route('/expenditures/<int:expenditure_id>/attach_document', methods=['POST'])
+@login_required
+def attach_document_to_expenditure(expenditure_id):
+    if 'file' not in request.files:
+        flash('No file selected', 'danger')
+        return redirect(url_for('view_expenditure', expenditure_id=expenditure_id))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('No file selected', 'danger')
+        return redirect(url_for('view_expenditure', expenditure_id=expenditure_id))
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+        
+        document_name = request.form.get('document_name')
+        description = request.form.get('description', '')
+        
+        cur = get_db_connection()
+        try:
+            # Create document record
+            cur.execute("""
+                INSERT INTO documents (document_name, file_path, description, uploaded_by)
+                VALUES (%s, %s, %s, %s)
+            """, (document_name, unique_filename, description, session['user_id']))
+            document_id = cur.lastrowid
+            
+            # Link document to expenditure
+            cur.execute("""
+                INSERT INTO expenditure_documents (expenditure_id, document_id)
+                VALUES (%s, %s)
+            """, (expenditure_id, document_id))
+            
+            mysql.connection.commit()
+            flash('Document attached successfully', 'success')
+        except Exception as e:
+            mysql.connection.rollback()
+            flash(f'Error attaching document: {str(e)}', 'danger')
+        finally:
+            cur.close()
+    else:
+        flash('Invalid file type', 'danger')
+    
+    return redirect(url_for('view_expenditure', expenditure_id=expenditure_id))
+
+# Add task delete route
+@app.route('/tasks/<int:task_id>/delete', methods=['POST'])
+@login_required
+def delete_task(task_id):
+    cur = get_db_connection()
+    
+    try:
+        # Get project_id before deletion for redirect
+        cur.execute("SELECT project_id FROM tasks WHERE task_id = %s", (task_id,))
+        result = cur.fetchone()
+        
+        if not result:
+            flash('Task not found', 'danger')
+            return redirect(url_for('projects'))
+        
+        project_id = result['project_id']
+        
+        # Delete task assignments
+        cur.execute("DELETE FROM task_assignments WHERE task_id = %s", (task_id,))
+        
+        # Delete task materials
+        cur.execute("DELETE FROM task_materials WHERE task_id = %s", (task_id,))
+        
+        # Delete daily progress
+        cur.execute("DELETE FROM daily_progress WHERE task_id = %s", (task_id,))
+        
+        # Delete subtasks first (if any)
+        cur.execute("DELETE FROM tasks WHERE parent_task_id = %s", (task_id,))
+        
+        # Delete the task itself
+        cur.execute("DELETE FROM tasks WHERE task_id = %s", (task_id,))
+        
+        mysql.connection.commit()
+        flash('Task deleted successfully', 'success')
+    except Exception as e:
+        mysql.connection.rollback()
+        flash(f'Error deleting task: {str(e)}', 'danger')
+    finally:
+        cur.close()
+    
+    return redirect(url_for('project_details', project_id=project_id))
 
 # Routes
 @app.route('/')
@@ -144,6 +364,32 @@ def add_expenditure(project_id):
             INSERT INTO project_expenditures (project_id, description, amount, expenditure_date, category, created_by)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (project_id, description, amount, expenditure_date, category, session['user_id']))
+        expenditure_id = cur.lastrowid
+        
+        # Handle document upload if provided
+        if 'file' in request.files and request.files['file'].filename != '':
+            file = request.files['file']
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                unique_filename = f"{uuid.uuid4().hex}_{filename}"
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+                
+                document_name = request.form.get('document_name', f"Receipt for {description}")
+                description_doc = request.form.get('document_description', '')
+                
+                # Create document record
+                cur.execute("""
+                    INSERT INTO documents (document_name, file_path, description, uploaded_by)
+                    VALUES (%s, %s, %s, %s)
+                """, (document_name, unique_filename, description_doc, session['user_id']))
+                document_id = cur.lastrowid
+                
+                # Link document to expenditure
+                cur.execute("""
+                    INSERT INTO expenditure_documents (expenditure_id, document_id)
+                    VALUES (%s, %s)
+                """, (expenditure_id, document_id))
+        
         mysql.connection.commit()
         
         # Update project actual budget

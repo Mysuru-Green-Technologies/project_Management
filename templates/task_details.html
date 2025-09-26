@@ -18,6 +18,22 @@
         <i class="bi bi-clipboard2-data"></i> Record Progress
     </button>
 </div>
+
+<!-- Added Delete Button Group -->
+<div class="btn-group btn-group-sm ms-2">
+    <a href="{{ url_for('task_details', task_id=task.task_id) }}" class="btn btn-outline-primary">
+        <i class="bi bi-eye"></i>
+    </a>
+    <a href="{{ url_for('edit_task', task_id=task.task_id) }}" class="btn btn-outline-warning">
+        <i class="bi bi-pencil"></i>
+    </a>
+    <form method="POST" action="{{ url_for('delete_task', task_id=task.task_id) }}"
+          onsubmit="return confirm('Are you sure you want to delete this task? This will also delete all associated data.');">
+        <button type="submit" class="btn btn-outline-danger">
+            <i class="bi bi-trash"></i>
+        </button>
+    </form>
+</div>
 {% endblock %}
 
 {% block content %}
@@ -63,6 +79,52 @@
             </div>
         </div>
     </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5>Cost Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Labor Cost</h6>
+                    <div class="d-flex justify-content-between">
+                        <span>₹{{ "{:,.2f}".format(labor_cost or 0) }}</span>
+                        <span class="text-muted">
+                            {% if total_cost and total_cost > 0 %}
+                            {{ ((labor_cost / total_cost) * 100)|round(1) }}%
+                            {% else %}0%{% endif %}
+                        </span>
+                    </div>
+                    <div class="progress progress-thin">
+                        <div class="progress-bar bg-primary" role="progressbar" 
+                             style="width: {% if total_cost and total_cost > 0 %}{{ ((labor_cost / total_cost) * 100) }}{% else %}0{% endif %}%" 
+                             aria-valuenow="{% if total_cost and total_cost > 0 %}{{ ((labor_cost / total_cost) * 100) }}{% else %}0{% endif %}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100"></div>
+                    </div>
+                </div>
+                <div>
+                    <h6>Material Cost</h6>
+                    <div class="d-flex justify-content-between">
+                        <span>₹{{ "{:,.2f}".format(material_cost or 0) }}</span>
+                        <span class="text-muted">
+                            {% if total_cost and total_cost > 0 %}
+                            {{ ((material_cost / total_cost) * 100)|round(1) }}%
+                            {% else %}0%{% endif %}
+                        </span>
+                    </div>
+                    <div class="progress progress-thin">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {% if total_cost and total_cost > 0 %}{{ ((material_cost / total_cost) * 100) }}{% else %}0{% endif %}%" 
+                             aria-valuenow="{% if total_cost and total_cost > 0 %}{{ ((material_cost / total_cost) * 100) }}{% else %}0{% endif %}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
     <div class="col-md-4">
         <div class="card h-100">
             <div class="card-header">

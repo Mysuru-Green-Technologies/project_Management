@@ -58,38 +58,79 @@
 
 <!-- Add Expenditure Modal -->
 <div class="modal fade" id="addExpenditureModal" tabindex="-1" aria-labelledby="addExpenditureModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addExpenditureModalLabel">Add Project Expenditure</h5>
+                <h5 class="modal-title" id="addExpenditureModalLabel">Add New Expenditure</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST" action="{{ url_for('add_expenditure', project_id=project.project_id) }}">
+            <form method="POST" action="{{ url_for('add_expenditure', project_id=project.project_id) }}" enctype="multipart/form-data">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="description" class="form-label">Description</label>
-                        <input type="text" class="form-control" id="description" name="description" required>
-                    </div>
-                    <div class="row mb-3">
+                    <div class="row">
                         <div class="col-md-6">
-                            <label for="amount" class="form-label">Amount (₹)</label>
-                            <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <input type="text" class="form-control" id="description" name="description" required>
+                            </div>
                         </div>
                         <div class="col-md-6">
-                            <label for="expenditure_date" class="form-label">Date</label>
-                            <input type="date" class="form-control" id="expenditure_date" name="expenditure_date" required>
+                            <div class="mb-3">
+                                <label for="category" class="form-label">Category</label>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="Materials">Materials</option>
+                                    <option value="Labor">Labor</option>
+                                    <option value="Equipment">Equipment</option>
+                                    <option value="Subcontractor">Subcontractor</option>
+                                    <option value="Permits">Permits</option>
+                                    <option value="Utilities">Utilities</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Amount (₹)</label>
+                                <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="expenditure_date" class="form-label">Date</label>
+                                <input type="date" class="form-control" id="expenditure_date" name="expenditure_date" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Document Upload Section -->
                     <div class="mb-3">
-                        <label for="category" class="form-label">Category</label>
-                        <select class="form-select" id="category" name="category">
-                            <option value="Materials">Materials</option>
-                            <option value="Equipment">Equipment</option>
-                            <option value="Labor">Labor</option>
-                            <option value="Permits">Permits</option>
-                            <option value="Utilities">Utilities</option>
-                            <option value="Other">Other</option>
-                        </select>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="attachDocument" name="attach_document">
+                            <label class="form-check-label" for="attachDocument">
+                                Attach supporting document (receipt, invoice, etc.)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div id="documentSection" style="display: none;">
+                        <div class="border p-3 rounded">
+                            <h6>Document Details</h6>
+                            <div class="mb-3">
+                                <label for="document_name" class="form-label">Document Name</label>
+                                <input type="text" class="form-control" id="document_name" name="document_name">
+                            </div>
+                            <div class="mb-3">
+                                <label for="document_description" class="form-label">Description</label>
+                                <textarea class="form-control" id="document_description" name="document_description" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="file" class="form-label">Document File</label>
+                                <input class="form-control" type="file" id="file" name="file">
+                                <small class="text-muted">Allowed formats: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -100,7 +141,22 @@
         </div>
     </div>
 </div>
-
+<script>
+    // Show/hide document section based on checkbox
+    document.getElementById('attachDocument').addEventListener('change', function() {
+        const documentSection = document.getElementById('documentSection');
+        documentSection.style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Set default date to today
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('expenditure_date').value = today;
+        
+        // Set default document name
+        document.getElementById('document_name').value = 'Expenditure Receipt';
+    });
+</script>   
 <!-- Upload Document Modal -->
 <div class="modal fade" id="uploadDocumentModal" tabindex="-1" aria-labelledby="uploadDocumentModalLabel" aria-hidden="true">
     <div class="modal-dialog">
